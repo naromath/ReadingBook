@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card" style="text-align: center;">
+    <h2>안녕하세요! 오늘은 어떤 독서 여정을 시작할까요?</h2>
+</div>
+
+<div class="menu-grid">
+    <a href="{{ url_for('scan') }}" class="menu-item standout">
+        <span class="icon">📸</span>
+        <span>표지로 등록</span>
+        <small>AI가 제목을 읽어요</small>
+    </a>
+    <a href="{{ url_for('search') }}" class="menu-item">
+        <span class="icon">🔍</span>
+        <span>수동으로 검색</span>
+        <small>ISBN/제목 입력</small>
+    </a>
+    <a href="{{ url_for('log') }}" class="menu-item">
+        <span class="icon">✍️</span>
+        <span>독서 기록 작성</span>
+        <small>오늘의 한 문장</small>
+    </a>
+    <a href="{{ url_for('bookshelf') }}" class="menu-item">
+        <span class="icon">📚</span>
+        <span>내 책장 보기</span>
+        <small>기록 보관함</small>
+    </a>
+</div>
+
+{% if current_book %}
+<div class="info-box">
+    📍 현재 읽고 있는 책: <strong>{{ current_book.title }}</strong>
+</div>
+{% endif %}
+{% endblock %}

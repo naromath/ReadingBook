@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2>🔍 책 검색 및 등록</h2>
+    <p>등록하고 싶은 책의 제목이나 ISBN을 입력해 주세요.</p>
+
+    <form action="{{ url_for('search') }}" method="POST" id="search-form">
+        <div class="form-group">
+            <label>🔍 검색 조건</label>
+            <div style="display: flex; gap: 15px; margin-bottom: 10px;">
+                <label style="font-size: 0.9rem;"><input type="radio" name="query_type" value="Title" checked>
+                    제목</label>
+                <label style="font-size: 0.9rem;"><input type="radio" name="query_type" value="Author"> 저자</label>
+                <label style="font-size: 0.9rem;"><input type="radio" name="query_type" value="ISBN13"> ISBN</label>
+            </div>
+            <input type="text" id="isbn" name="isbn" value="{{ request.args.get('q', '') }}" placeholder="검색어를 입력해 주세요"
+                required>
+        </div>
+
+        <div class="form-group">
+            <label for="user_goal">🎯 독서 목적</label>
+            <select id="user_goal" name="user_goal" class="input-field" required>
+                <option value="" disabled selected>목적을 선택해 주세요</option>
+                <option value="투자">투자</option>
+                <option value="자기개발">자기개발</option>
+                <option value="경영">경영</option>
+                <option value="건강">건강</option>
+                <option value="기타">기타</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-full">책 정보 불러오기</button>
+    </form>
+</div>
+
+{% if auto_submit %}
+<script>
+    // 스캔 후 넘어온 경우 바로 정보 조회를 위해 폼 전송은 하지 않고 안내만 (목표 입력 유도)
+    document.getElementById('user_goal').focus();
+</script>
+{% endif %}
+{% endblock %}

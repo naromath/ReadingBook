@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}AI 표지 인식 - 독서 기록 도우미{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>📸 책 표지 촬영</h2>
+    <p>책 표지가 화면에 잘 들어오도록 촬영 버튼을 눌러주세요.</p>
+
+    <div id="camera-container" style="margin: 20px 0;">
+        <video id="video" width="100%" height="auto" autoplay playsinline
+            style="border-radius: 10px; background: #000; display: none;"></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+        <div id="camera-placeholder"
+            style="width: 100%; height: 250px; background: #2a2a3e; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 2px dashed #6b4c9a;">
+            <p>카메라를 활성화해 주세요.</p>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button type="button" id="start-camera" class="btn">카메라 켜기</button>
+        <button type="button" id="capture" class="btn" style="display:none; background: #e91e63;">📸 촬영 및 분석</button>
+    </div>
+
+    <div id="loading" style="display:none; margin-top: 20px;">
+        <div class="progress-bar">
+            <div class="progress" style="width: 100%"></div>
+        </div>
+        <p>AI가 표지를 분석 중입니다... 잠시만 기다려 주세요.</p>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const captureBtn = document.getElementById('capture');
+    const startBtn = document.getElementById('start-camera');
+    const placeholder = document.getElementById('camera-placeholder');
+    const loading = document.getElementById('loading');
+
+    startBtn.onclick = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "environment" }
+            });
+            video.srcObject = stream;
+            video.style.display = 'block';
+            placeholder.style.display = 'none';
+            startBtn.style.display = 'none';
+            captureBtn.style.display = 'inline-block';
+        } catch (err) {
+            alert("카메라 권한이 필요합니다: " + err);
+        }
+    };
+
+    captureBtn.onclick = () => {
+        const context = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const imageData = canvas.toDataURL('image/jpeg');
+        loading.style.display = 'block';
+        captureBtn.disabled = true;
+
+        fetch('/analyze-cover', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: imageData })
+        })
+            .then(res => res.json())
+            .then(data => {
+                loading.style.display = 'none';
+                captureBtn.disabled = false;
+                if (data.status === 'success') {
+                    // 인식 성공 시 검색 페이지로 이동하여 검색 수행
+                    const title = data.data.title;
+                    alert("📖 책을 찾았습니다: " + title);
+                    window.location.href = `/search?q=${encodeURIComponent(title)}`;
+                } else {
+                    alert("분석 실패: " + (data.message || "책을 인식하지 못했습니다."));
+                }
+            })
+            .catch(err => {
+                loading.style.display = 'none';
+                captureBtn.disabled = false;
+                alert("서버 통신 오류: " + err);
+            });
+    };
+</script>
+{% endblock %}

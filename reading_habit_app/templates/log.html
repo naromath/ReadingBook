@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h3>📝 오늘 읽은 감상 남기기</h3>
+
+    {% if not book_data %}
+    <div class="info-box" style="border-left-color: #f59e0b;">
+        먼저 <a href="/search">새로운 책 저장</a> 메뉴에서 읽을 책을 등록해 주세요.
+    </div>
+    {% else %}
+    <div style="display: flex; gap: 20px; align-items: start; margin-bottom: 24px;">
+        {% if book_data.thumbnail %}
+        <img src="{{ book_data.thumbnail }}" width="100" class="thumbnail">
+        {% endif %}
+        <div>
+            <h4 style="margin: 0;">📖 {{ book_data.title }}</h4>
+            <p class="text-muted" style="margin: 5px 0;">{{ book_data.authors[0] }}</p>
+            <div class="info-box" style="font-size: 0.9rem; padding: 10px;">
+                💡 <strong>AI 큐레이터:</strong> {{ curation_data.curation_message }}
+            </div>
+        </div>
+    </div>
+
+    <form action="/log" method="POST">
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 16px;">
+            <div>
+                <label>오늘 누적 읽은 쪽수</label>
+                <input type="number" name="read_pages" class="input-field" min="1" max="{{ book_data.page_count }}"
+                    value="{{ curation_data.daily_pages }}" required>
+                <small class="text-muted">전체 {{ book_data.page_count }}쪽</small>
+            </div>
+            <div>
+                <label>인상 깊었던 점</label>
+                <textarea name="user_thought" class="input-field" style="height: 100px;"
+                    placeholder="오늘 읽은 부분에서 무엇을 느꼈나요?" required></textarea>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 10px;">기록 저장 및 AI 피드백 받기 💌</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}독서 비서{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1 style="margin: 0;"><a href="/" style="text-decoration: none; color: inherit;">📚 AI 독서 비서</a></h1>
+            {% if request.endpoint != 'index' %}
+                <a href="/" class="btn btn-outline" style="width: auto; padding: 6px 16px;">🏠 홈</a>
+            {% endif %}
+        </header>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="info-box" style="border-left-color: {% if category == 'error' %}#ef4444{% else %}#7c4dff{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+        
+        <footer style="text-align: center; margin-top: 60px; color: var(--text-muted); font-size: 0.9rem;">
+            © 2026 나만의 AI 독서 비서
+        </footer>
+    </div>
+</body>
+</html>

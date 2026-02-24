@@ -1,232 +1,152 @@
-import streamlit as st
+import os
 import requests
+import json
 import base64
+from flask import Flask, render_template, request, redirect, url_for, session, flash, Response
+from dotenv import load_dotenv
+from backend import db_service, ai_service, book_service  # 분리된 서비스들 임포트
 
-# --- 🔐 인증 기능 추가 ---
-def check_password():
-    """로그인 성공 시 True를 반환합니다."""
-    def password_entered():
-        # 유저님이 정한 비밀번호를 'your_password' 자리에 입력하세요.
-        if st.session_state["password"] == "615015!!": # <- 여기에 비밀번호 설정
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]  # 보안을 위해 세션에서 비밀번호 삭제
-        else:
-            st.session_state["password_correct"] = False
+load_dotenv()
 
-    if "password_correct" not in st.session_state:
-        # 로그인 화면 UI
-        st.text_input("접근 권한이 필요합니다. 비밀번호를 입력하세요.", type="password", on_change=password_entered, key="password")
-        return False
-    elif not st.session_state["password_correct"]:
-        st.text_input("비밀번호가 틀렸습니다. 다시 입력하세요.", type="password", on_change=password_entered, key="password")
-        return False
-    else:
-        return True
+app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "reading-habit-secret-key-12345")
 
-# 인증 통과 시에만 아래 메인 코드를 실행
-if not check_password():
-    st.stop()
+# 서버 시작 시 DB 초기화
+db_service.init_db()
 
-API_BASE_URL = "http://127.0.0.1:8000/api"
-
-st.set_page_config(page_title="나만의 AI 독서 비서", page_icon="📚", layout="centered")
-
-if "book_data" not in st.session_state:
-    st.session_state.book_data = None
-if "curation_data" not in st.session_state:
-    st.session_state.curation_data = None
-if "user_goal" not in st.session_state:
-    st.session_state.user_goal = ""
-if "detected_title" not in st.session_state:
-    st.session_state.detected_title = ""
-
-# DB에서 과거 기록을 가져오는 함수
-def load_reading_logs(book_title):
-    try:
-        res = requests.get(f"{API_BASE_URL}/logs/{book_title}")
-        if res.status_code == 200 and res.json().get("status") == "success":
-            return res.json()["data"]
-        return []
-    except:
-        return []
-
-# 📝 (NEW!) 옵시디언(Second Brain) 친화적인 마크다운 생성 함수
-def generate_markdown(book, curation, logs, goal):
-    # YAML Frontmatter (옵시디언 등의 속성값으로 자동 인식됨)
+# --- 🛠 유틸리티 함수 ---
+def generate_markdown_content(book, curation, logs, goal):
     md = "---\n"
     md += f"title: {book['title']}\n"
     md += f"author: {', '.join(book['authors'])}\n"
     md += f"total_pages: {book['page_count']}\n"
     md += "tags: [독서노트, Second_Brain]\n"
     md += "---\n\n"
-    
-    # 본문 시작
     md += f"# 📚 {book['title']}\n\n"
-    if book['thumbnail']:
+    if book.get('thumbnail'):
         md += f"![Cover]({book['thumbnail']})\n\n"
-        
     md += "## 🎯 나의 목표 및 AI 큐레이션\n"
     md += f"- **나의 목표**: {goal}\n"
     md += f"- **AI 추천사**: {curation['curation_message']}\n"
     md += f"- **독서 팁**: {curation['schedule_advice']}\n\n"
-    
     md += "---\n\n"
     md += "## ✍️ 데일리 독서 기록\n\n"
-    
-    # 기록을 과거부터 순서대로 읽기 위해 역순(시간순)으로 뒤집어 줍니다.
     chronological_logs = reversed(logs)
-    
     for log in chronological_logs:
-        date_str = log['created_at'][:10] # YYYY-MM-DD 포맷
+        date_str = log['created_at'][:10]
         md += f"### 📅 {date_str} (p. {log['read_pages']})\n\n"
         md += f"**나의 감상:**\n> {log['user_thought']}\n\n"
         md += f"**🤖 AI 페이스메이커:**\n> {log['ai_feedback']}\n\n"
-    
     return md
 
-st.title("📚 나만의 AI 독서 비서")
-st.subheader("책을 스캔하고 1주일 맞춤형 독서 계획을 받아보세요!")
+# --- 🛣 Flask Routes ---
 
-st.markdown("---")
+@app.route("/")
+def index():
+    current_book = session.get('book_data')
+    return render_template("index.html", current_book=current_book)
 
-# --- 📷 카메라 촬영으로 책 등록 ---
-st.subheader("📷 책 표지 촬영으로 자동 등록")
-st.caption("카메라로 책 표지를 찍으면 AI가 제목을 자동으로 인식합니다.")
-img_file = st.camera_input("책 표지가 잘 보이도록 촬영해 주세요")
+@app.route("/scan")
+def scan():
+    return render_template("scan.html")
 
-if img_file:
-    bytes_data = img_file.getvalue()
-    base64_image = base64.b64encode(bytes_data).decode('utf-8')
-    data_url = f"data:image/jpeg;base64,{base64_image}"
+@app.route("/search", methods=["GET", "POST"])
+def search():
+    # GET 요청 시 검색어(q)가 넘어오면 바로 처리 (스캔 결과 연결)
+    if request.method == "GET" and request.args.get("q"):
+        query = request.args.get("q")
+        book_data = book_service.get_book_info(query) # ISBN 대신 제목으로도 검색 가능하게 (내부 로직 확인 필요)
+        if book_data:
+            session['book_data'] = book_data
+            return render_template("search.html", auto_submit=True)
 
-    with st.spinner("🤖 AI가 책을 확인하고 있습니다..."):
-        try:
-            res = requests.post(f"{API_BASE_URL}/analyze-cover", json={"image": data_url})
-            if res.status_code == 200:
-                book_info = res.json()["data"]
-                st.session_state.detected_title = book_info.get('title', '')
-                st.success(f"📖 찾았습니다! **제목:** {book_info.get('title', '알 수 없음')} / **저자:** {book_info.get('author', '알 수 없음')}")
-                st.info("아래 검색창에 인식된 제목이 자동으로 입력되었습니다. 목표를 입력하고 검색 버튼을 눌러주세요.")
-            else:
-                st.error("책을 인식하지 못했습니다. 다시 촬영해 주세요.")
-        except Exception as e:
-            st.error(f"오류 발생: {str(e)}")
-
-st.markdown("---")
-
-# --- 🔍 ISBN / 제목 검색 섹션 ---
-col1, col2 = st.columns(2)
-with col1:
-    isbn_input = st.text_input("1️⃣ 책 제목 또는 ISBN 입력", value=st.session_state.detected_title, placeholder="예: 9791190538510")
-with col2:
-    goal_input = st.text_input("2️⃣ 이번 주 독서 목표는?", placeholder="예: 마흔을 앞두고 내면의 성장")
-
-if st.button("검색 및 AI 큐레이션 시작 🚀", use_container_width=True):
-    if not isbn_input or not goal_input:
-        st.warning("ISBN과 독서 목표를 모두 입력해 주세요.")
-    else:
-        try:
-            with st.spinner("책 정보와 AI 큐레이션을 가져오는 중입니다..."):
-                book_res = requests.get(f"{API_BASE_URL}/books/{isbn_input}")
-                book_res.raise_for_status()
-                b_data = book_res.json()
-                
-                if b_data.get("status") == "success":
-                    st.session_state.book_data = b_data["data"]
-                    st.session_state.user_goal = goal_input
-                    
-                    curation_payload = {
-                        "user_goal": goal_input,
-                        "book_title": st.session_state.book_data["title"],
-                        "total_pages": st.session_state.book_data["page_count"]
-                    }
-                    cur_res = requests.post(f"{API_BASE_URL}/curation", json=curation_payload)
-                    cur_res.raise_for_status()
-                    c_data = cur_res.json()
-                    
-                    if c_data.get("status") == "success":
-                        st.session_state.curation_data = c_data["data"]
-                    else:
-                        st.error("AI 큐레이션을 가져오는데 실패했습니다.")
-                else:
-                    st.error(b_data.get("message", "책 정보를 찾을 수 없습니다."))
-        except Exception as e:
-            st.error(f"오류가 발생했습니다: {str(e)}")
-
-# 화면 출력부
-if st.session_state.book_data and st.session_state.curation_data:
-    book = st.session_state.book_data
-    curation = st.session_state.curation_data
-    
-    b_col1, b_col2 = st.columns([1, 2])
-    with b_col1:
-        if book["thumbnail"]:
-            st.image(book["thumbnail"], width=150)
-    with b_col2:
-        st.write(f"**제목:** {book['title']}")
-        st.write(f"**저자:** {', '.join(book['authors'])}")
-        st.write(f"**총 페이지 수:** {book['page_count']}쪽")
-    
-    st.markdown("---")
-    
-    st.subheader("✨ AI 큐레이션 결과")
-    st.info(f"💡 **AI의 추천사:**\n{curation['curation_message']}")
-    st.metric(label="하루 권장 독서량", value=f"{curation['daily_pages']} 쪽", delta="1주일 완독 페이스")
-    
-    st.markdown("---")
-    
-    st.subheader("📝 데일리 독서 기록")
-    log_col1, log_col2 = st.columns([1, 2])
-    with log_col1:
-        read_pages = st.number_input("오늘 누적 읽은 쪽수", min_value=1, max_value=book["page_count"], value=curation['daily_pages'])
-    with log_col2:
-        user_thought = st.text_area("오늘 읽은 부분에서 인상 깊었던 점은?")
+    if request.method == "POST":
+        query = request.form.get("isbn")
+        query_type = request.form.get("query_type", "Title")
+        user_goal = request.form.get("user_goal")
         
-    if st.button("기록 저장 및 AI 피드백 받기 💌"):
-        if not user_thought:
-            st.warning("짧게라도 오늘의 감상을 남겨주세요!")
+        # 1. 책 정보 조회 (book_service 사용)
+        book_data = book_service.search_books(query, query_type)
+        if not book_data:
+            flash("책 정보를 찾을 수 없습니다. 정확한 ISBN 또는 제목을 확인해 주세요.", "error")
+            return redirect(url_for("search"))
+            
+        session['book_data'] = book_data
+        session['user_goal'] = user_goal
+        
+        # 2. AI 큐레이션 생성 (ai_service 사용)
+        curation_data = ai_service.get_ai_curation(user_goal, book_data['title'], book_data['page_count'])
+        if curation_data:
+            session['curation_data'] = curation_data
+            flash("새로운 책이 성공적으로 등록되었습니다!", "success")
+            return redirect(url_for("log"))
         else:
-            with st.spinner("AI가 감상을 읽고 답장을 쓰고 있습니다..."):
-                payload = {
-                    "book_title": book["title"],
-                    "read_pages": read_pages,
-                    "user_thought": user_thought
-                }
-                log_res = requests.post(f"{API_BASE_URL}/daily-log", json=payload)
-                
-                if log_res.status_code == 200 and log_res.json().get("status") == "success":
-                    st.balloons()
-                    st.success("기록이 성공적으로 저장되었습니다!")
-                else:
-                    st.error("저장에 실패했습니다.")
-    
-    st.markdown("---")
-    
-    st.subheader("📚 나의 독서 기록 히스토리")
-    past_logs = load_reading_logs(book["title"])
-    
-    if len(past_logs) == 0:
-        st.caption("아직 작성된 기록이 없습니다. 첫 번째 기록을 남겨보세요!")
+            flash("AI 큐레이션 생성에 실패했습니다.", "error")
+            return redirect(url_for("search"))
+            
+    return render_template("search.html")
+
+@app.route("/analyze-cover", methods=["POST"])
+def analyze_cover():
+    data = request.json
+    image_data = data.get("image")
+    if not image_data:
+        return {"status": "error", "message": "이미지 데이터가 없습니다."}
+        
+    # 이미지 분석 (ai_service 사용)
+    result = ai_service.analyze_book_cover(image_data)
+    if result:
+        return {"status": "success", "data": result}
     else:
-        latest_page = past_logs[0]['read_pages']
-        progress = int((latest_page / book['page_count']) * 100)
-        st.progress(progress / 100, text=f"완독까지 {progress}% 진행 중! ( {latest_page} / {book['page_count']} 쪽 )")
+        return {"status": "error", "message": "책을 인식하지 못했습니다."}
+
+@app.route("/log", methods=["GET", "POST"])
+def log():
+    book_data = session.get('book_data')
+    curation_data = session.get('curation_data')
+    
+    if request.method == "POST":
+        read_pages = int(request.form.get("read_pages"))
+        user_thought = request.form.get("user_thought")
         
-        # 💾 (NEW!) 마크다운 다운로드 버튼
-        md_content = generate_markdown(book, curation, past_logs, st.session_state.user_goal)
-        file_name = f"독서노트_{book['title'][:10]}.md"
+        # 1. AI 피드백 생성 (ai_service 사용)
+        ai_reply = ai_service.get_ai_feedback(book_data['title'], read_pages, user_thought)
         
-        st.download_button(
-            label="📄 마크다운(.md)으로 전체 노트 내보내기",
-            data=md_content,
-            file_name=file_name,
-            mime="text/markdown",
-            use_container_width=True
-        )
-        st.write("")
-        
-        for log in past_logs:
-            date_str = log['created_at'][:16] 
-            with st.expander(f"📅 {date_str} - {log['read_pages']}쪽까지 읽음"):
-                st.write(f"**나의 감상:** {log['user_thought']}")
-                st.info(f"🤖 **AI 메이트:** {log['ai_feedback']}")
+        # 2. 기록 저장 (db_service 사용)
+        book_image = book_data.get('thumbnail')
+        if db_service.save_log(book_data['title'], read_pages, user_thought, ai_reply, book_image):
+            flash("오늘의 기록이 저장되었습니다! 👏", "success")
+            return redirect(url_for("bookshelf"))
+        else:
+            flash("저장에 실패했습니다.", "error")
+            
+    return render_template("log.html", book_data=book_data, curation_data=curation_data)
+
+@app.route("/bookshelf")
+def bookshelf():
+    book_data = session.get('book_data')
+    logs = []
+    if book_data:
+        # 특정 책에 대한 기록 조회 (db_service 사용)
+        logs = db_service.get_logs(book_data['title'])
+    
+    # 전체 책 리스트 조회
+    all_books = db_service.get_unique_books()
+    return render_template("bookshelf.html", book_data=book_data, logs=logs, all_books=all_books)
+
+@app.route("/export")
+def export():
+    book_data = session.get('book_data')
+    curation_data = session.get('curation_data')
+    user_goal = session.get('user_goal')
+    
+    if not book_data: return redirect(url_for("index"))
+    
+    logs = db_service.get_logs(book_data['title'])
+    content = generate_markdown_content(book_data, curation_data, logs, user_goal)
+    
+    return Response(content, mimetype="text/markdown",
+                    headers={"Content-disposition": f"attachment; filename=reading_note_{book_data['title'][:10]}.md"})
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8501, debug=True)

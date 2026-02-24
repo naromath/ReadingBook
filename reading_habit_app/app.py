@@ -6,7 +6,7 @@ def check_password():
     """로그인 성공 시 True를 반환합니다."""
     def password_entered():
         # 유저님이 정한 비밀번호를 'your_password' 자리에 입력하세요.
-        if st.session_state["password"] == "your_password": # <- 여기에 비밀번호 설정
+        if st.session_state["password"] == "615015!!": # <- 여기에 비밀번호 설정
             st.session_state["password_correct"] = True
             del st.session_state["password"]  # 보안을 위해 세션에서 비밀번호 삭제
         else:

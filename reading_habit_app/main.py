@@ -6,6 +6,10 @@ import google.generativeai as genai
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
+import base64
+from io import BytesIO
+from PIL import Image
+
 
 load_dotenv()
 
@@ -151,3 +155,32 @@ def get_book_logs(book_title: str):
         return {"status": "success", "data": logs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"기록 불러오기 실패: {str(e)}")
+
+
+@app.post("/api/analyze-cover")
+def analyze_book_cover(file_data: dict):
+    try:
+        # 프론트엔드에서 보낸 base64 이미지를 처리합니다.
+        image_data = file_data.get("image")
+        if not image_data:
+            raise HTTPException(status_code=400, detail="이미지 데이터가 없습니다.")
+            
+        header, encoded = image_data.split(",", 1)
+        data = base64.b64decode(encoded)
+        image = Image.open(BytesIO(data))
+
+        # Gemini Vision 모델을 사용하여 책 정보를 추출합니다.
+        model = genai.GenerativeModel('gemini-2.0-flash-lite')
+        prompt = """
+        이 사진에 있는 책의 제목과 저자를 알려주세요. 
+        반드시 다음 JSON 형식으로만 답변하세요:
+        {
+            "title": "책 제목",
+            "author": "저자 이름"
+        }
+        """
+        response = model.generate_content([prompt, image])
+        result_text = response.text.replace("```json", "").replace("```", "").strip()
+        return {"status": "success", "data": json.loads(result_text)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"이미지 분석 실패: {str(e)}")

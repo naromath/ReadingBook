@@ -1,6 +1,31 @@
 import streamlit as st
 import requests
 
+# --- 🔐 인증 기능 추가 ---
+def check_password():
+    """로그인 성공 시 True를 반환합니다."""
+    def password_entered():
+        # 유저님이 정한 비밀번호를 'your_password' 자리에 입력하세요.
+        if st.session_state["password"] == "your_password": # <- 여기에 비밀번호 설정
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  # 보안을 위해 세션에서 비밀번호 삭제
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        # 로그인 화면 UI
+        st.text_input("접근 권한이 필요합니다. 비밀번호를 입력하세요.", type="password", on_change=password_entered, key="password")
+        return False
+    elif not st.session_state["password_correct"]:
+        st.text_input("비밀번호가 틀렸습니다. 다시 입력하세요.", type="password", on_change=password_entered, key="password")
+        return False
+    else:
+        return True
+
+# 인증 통과 시에만 아래 메인 코드를 실행
+if not check_password():
+    st.stop()
+
 API_BASE_URL = "http://127.0.0.1:8000/api"
 
 st.set_page_config(page_title="나만의 AI 독서 비서", page_icon="📚", layout="centered")

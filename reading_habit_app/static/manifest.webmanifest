@@ -1,0 +1,31 @@
+{
+  "name": "AI 독서 비서",
+  "short_name": "독서비서",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "lang": "ko",
+  "background_color": "#0f172a",
+  "theme_color": "#7c4dff",
+  "description": "ISBN 바코드 스캔과 AI 독서 기록을 지원하는 웹앱",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/icon-book.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

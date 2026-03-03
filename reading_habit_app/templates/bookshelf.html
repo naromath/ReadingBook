@@ -1,92 +1,55 @@
 {% extends "base.html" %}
 
+{% block title %}Bookshelf - AI 독서 비서{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h3>📚 읽고 있는 전체 책 목록</h3>
-    <div style="display: flex; gap: 15px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 20px;">
-        {% for book in all_books %}
-        <div style="flex: 0 0 120px; text-align: center;">
-            <div
-                style="width: 120px; height: 170px; background: #2a2a3e; border-radius: 8px; overflow: hidden; margin-bottom: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
-                {% if book.book_image %}
-                <img src="{{ book.book_image }}" alt="{{ book.book_title }}"
-                    style="width: 100%; height: 100%; object-fit: cover;">
-                {% else %}
-                <div
-                    style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.8rem; color: #666;">
-                    No Image</div>
-                {% endif %}
-            </div>
-            <p
-                style="font-size: 0.85rem; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold;">
-                {{ book.book_title }}</p>
-        </div>
-        {% endfor %}
+<section class="content-card">
+    <div class="section-row">
+        <h1 class="hero-title small">My Bookshelf</h1>
+        <a href="{{ url_for('export') }}" class="ghost-btn">Export .md</a>
     </div>
 
-    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
-
-    <h3>📂 현재 독서 히스토리</h3>
-
-    {% if not book_data and not logs %}
-    <div class="info-box">아직 등록된 책이 없습니다. 책을 먼저 등록해 보세요!</div>
-    {% else %}
-    <div style="display: flex; gap: 20px; margin-bottom: 24px;">
-        {% set display_image = book_data.thumbnail if book_data and book_data.thumbnail else (logs[0].book_image if logs
-        and logs[0].book_image else '') %}
-        {% if display_image %}
-        <div style="flex-shrink: 0;">
-            <img src="{{ display_image }}" alt="책 표지"
-                style="width: 100px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-        </div>
+    <div class="book-row compact-row">
+        {% if all_books %}
+            {% for book in all_books %}
+            <article class="book-tile mini">
+                <div class="cover-slot small">
+                    {% if book.book_image %}
+                    <img class="cover-img" src="{{ book.book_image }}" alt="{{ book.book_title }}">
+                    {% else %}
+                    <div class="no-cover">NO COVER</div>
+                    {% endif %}
+                </div>
+                <h3>{{ book.book_title }}</h3>
+            </article>
+            {% endfor %}
+        {% else %}
+            <div class="status-panel">아직 등록된 책이 없습니다.</div>
         {% endif %}
-        <div>
-            <h4>📚 {{ book_data.title if book_data else (logs[0].book_title if logs else '책 제목 없음') }}</h4>
-            <p class="text-muted">
-                {{ book_data.authors | join(', ') if book_data else '저자 정보 없음' }}
-                {% if book_data and book_data.page_count %}/ 총 {{ book_data.page_count }}쪽{% endif %}
-            </p>
-
-            {% if book_data and book_data.page_count %}
-            {% set latest_page = logs[0].read_pages if logs else 0 %}
-            {% set progress = (latest_page / book_data.page_count * 100) | int %}
-            <div class="progress-bar" style="margin-top: 10px;">
-                <div class="progress-fill" style="width: {{ progress }}%;"></div>
-            </div>
-            <p style="font-size: 0.9rem; margin: 5px 0 0 0;">완독까지 {{ progress }}% 진행 중! ({{ latest_page }}/{{
-                book_data.page_count }})</p>
-            {% endif %}
-        </div>
     </div>
 
-    <div style="margin-bottom: 20px;">
-        <a href="/export" class="btn btn-outline">📄 마크다운(.md)으로 전체 노트 내보내기</a>
+    <div class="section-row inner-space">
+        <h2>Reading History</h2>
+        <a href="{{ url_for('log') }}" class="ghost-btn">Write Log</a>
     </div>
-
-    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 30px 0;">
 
     {% if not logs %}
-    <p style="text-align: center; color: var(--text-muted);">아직 작성된 기록이 없습니다.</p>
+    <div class="status-panel">선택된 책의 기록이 없습니다. 먼저 독서 기록을 남겨보세요.</div>
     {% else %}
-    {% for log in logs %}
-    <div class="card" style="padding: 16px; background: rgba(255,255,255,0.02);">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-            <span style="font-weight: bold; color: var(--primary-color);">📅 {{ log.created_at[:16] }}</span>
-            <span class="text-muted">📖 {{ log.read_pages }}쪽까지</span>
-        </div>
-        <div style="margin-bottom: 15px;">
-            <strong>내 감상:</strong><br>
-            <blockquote style="border-left: 2px solid #555; margin: 10px 0; padding-left: 15px; color: #ccc;">
-                {{ log.user_thought }}
-            </blockquote>
-        </div>
-        <div class="info-box" style="margin: 0; font-size: 0.9rem;">
-            <strong>🤖 AI 메이트:</strong><br>
-            {{ log.ai_feedback }}
-        </div>
-    </div>
-    {% endfor %}
+        {% for log in logs %}
+        <article class="history-item">
+            <div class="history-head">
+                <span>{{ log.created_at[:16] }}</span>
+                <span>{{ log.read_pages }}쪽</span>
+            </div>
+            <div class="history-body">
+                <p><strong>내 감상</strong></p>
+                <blockquote>{{ log.user_thought }}</blockquote>
+                <p><strong>AI 메이트</strong></p>
+                <p>{{ log.ai_feedback }}</p>
+            </div>
+        </article>
+        {% endfor %}
     {% endif %}
-    {% endif %}
-</div>
+</section>
 {% endblock %}

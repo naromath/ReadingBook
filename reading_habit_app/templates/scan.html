@@ -1,91 +1,162 @@
 {% extends "base.html" %}
 
-{% block title %}AI 표지 인식 - 독서 기록 도우미{% endblock %}
+{% block title %}ISBN Scan - AI 독서 비서{% endblock %}
 
 {% block content %}
-<div class="card">
-    <h2>📸 책 표지 촬영</h2>
-    <p>책 표지가 화면에 잘 들어오도록 촬영 버튼을 눌러주세요.</p>
+<section class="hero-panel compact">
+    <div class="section-row">
+        <h1 class="hero-title">ISBN Scanner</h1>
+        <a href="{{ url_for('search') }}" class="ghost-btn">Manual Search</a>
+    </div>
+    <p class="muted-copy">스마트폰 후면 카메라로 책 뒷면 바코드를 비춰 주세요.</p>
 
-    <div id="camera-container" style="margin: 20px 0;">
-        <video id="video" width="100%" height="auto" autoplay playsinline
-            style="border-radius: 10px; background: #000; display: none;"></video>
-        <canvas id="canvas" style="display:none;"></canvas>
-        <div id="camera-placeholder"
-            style="width: 100%; height: 250px; background: #2a2a3e; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 2px dashed #6b4c9a;">
-            <p>카메라를 활성화해 주세요.</p>
+    <div id="camera-container">
+        <video id="video" autoplay playsinline muted style="display: none;"></video>
+        <div id="camera-placeholder" class="camera-placeholder">
+            카메라를 켜고 바코드를 중앙 가이드에 맞춰 주세요.
         </div>
+        <div class="scan-focus-box" aria-hidden="true"></div>
     </div>
 
-    <div class="button-group">
-        <button type="button" id="start-camera" class="btn">카메라 켜기</button>
-        <button type="button" id="capture" class="btn" style="display:none; background: #e91e63;">📸 촬영 및 분석</button>
+    <div class="scan-controls">
+        <button type="button" id="start-camera" class="btn-primary-solid">카메라 켜기</button>
+        <button type="button" id="stop-camera" class="btn-soft" disabled>중지</button>
     </div>
 
-    <div id="loading" style="display:none; margin-top: 20px;">
-        <div class="progress-bar">
-            <div class="progress" style="width: 100%"></div>
-        </div>
-        <p>AI가 표지를 분석 중입니다... 잠시만 기다려 주세요.</p>
-    </div>
-</div>
+    <div id="status" class="status-panel">대기 중: 카메라를 켜면 ISBN을 자동 인식합니다.</div>
+</section>
 
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script>
     const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const captureBtn = document.getElementById('capture');
     const startBtn = document.getElementById('start-camera');
+    const stopBtn = document.getElementById('stop-camera');
     const placeholder = document.getElementById('camera-placeholder');
-    const loading = document.getElementById('loading');
+    const statusBox = document.getElementById('status');
+    let codeReader = null;
+    let controls = null;
+    let hasDetected = false;
+
+    const setStatus = (message, type = 'info') => {
+        statusBox.textContent = message;
+        statusBox.classList.remove('error', 'success');
+        if (type === 'error') statusBox.classList.add('error');
+        if (type === 'success') statusBox.classList.add('success');
+    };
+
+    const extractIsbn = (rawText) => {
+        if (!rawText) return null;
+        const text = rawText.replace(/[^0-9Xx]/g, '');
+        const isbn13Match = text.match(/97[89]\d{10}/);
+        if (isbn13Match) return isbn13Match[0];
+        const isbn10Match = text.match(/\d{9}[\dXx]/);
+        if (isbn10Match) return isbn10Match[0].toUpperCase();
+        return null;
+    };
+
+    const stopScanning = () => {
+        if (controls) {
+            controls.stop();
+            controls = null;
+        }
+        if (codeReader) {
+            codeReader.reset();
+        }
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+            video.srcObject = null;
+        }
+        video.style.display = 'none';
+        placeholder.style.display = 'flex';
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+    };
 
     startBtn.onclick = async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment" }
+            if (!window.ZXing) {
+                setStatus('바코드 스캐너 로딩에 실패했습니다. 네트워크 상태를 확인해 주세요.', 'error');
+                return;
+            }
+
+            hasDetected = false;
+            setStatus('카메라 준비 중입니다...');
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+
+            const hints = new Map();
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                ZXing.BarcodeFormat.EAN_13,
+                ZXing.BarcodeFormat.EAN_8,
+                ZXing.BarcodeFormat.UPC_A,
+                ZXing.BarcodeFormat.CODE_128
+            ]);
+
+            codeReader = new ZXing.BrowserMultiFormatReader(hints, 300);
+            const devices = await codeReader.listVideoInputDevices();
+            if (!devices.length) {
+                throw new Error('사용 가능한 카메라가 없습니다.');
+            }
+
+            const backCamera = devices.find((d) => /back|rear|environment/i.test(d.label));
+            const selectedDeviceId = (backCamera || devices[0]).deviceId;
+
+            controls = await codeReader.decodeFromVideoDevice(selectedDeviceId, video, (result, error) => {
+                if (hasDetected) return;
+
+                if (result) {
+                    const rawCode = result.getText();
+                    const isbn = extractIsbn(rawCode);
+                    if (!isbn) {
+                        setStatus(`바코드(${rawCode})는 읽었지만 ISBN 형식이 아닙니다.`, 'error');
+                        return;
+                    }
+
+                    hasDetected = true;
+                    if (navigator.vibrate) navigator.vibrate(120);
+                    setStatus(`ISBN 인식 성공: ${isbn} / 알라딘에서 조회 중입니다...`);
+
+                    fetch(`/api/isbn/${encodeURIComponent(isbn)}`)
+                        .then(async (res) => {
+                            const data = await res.json();
+                            if (!res.ok || data.status !== 'success') {
+                                throw new Error(data.message || '조회 실패');
+                            }
+                            const book = data.data;
+                            const author = (book.authors && book.authors.length) ? book.authors[0] : '저자 정보 없음';
+                            setStatus(`조회 완료: "${book.title}" / ${author}`, 'success');
+                        })
+                        .catch((err) => {
+                            setStatus(`알라딘 조회 실패(${err.message || err}) - 검색 페이지에서 확인해 주세요.`, 'error');
+                        })
+                        .finally(() => {
+                            stopScanning();
+                            setTimeout(() => {
+                                window.location.href = `/search?q=${encodeURIComponent(isbn)}&query_type=ISBN13`;
+                            }, 900);
+                        });
+                    return;
+                }
+
+                if (error && !(error instanceof ZXing.NotFoundException)) {
+                    setStatus(`스캔 중 오류: ${error.message || error}`, 'error');
+                }
             });
-            video.srcObject = stream;
+
             video.style.display = 'block';
             placeholder.style.display = 'none';
-            startBtn.style.display = 'none';
-            captureBtn.style.display = 'inline-block';
+            setStatus('스캔 중: 바코드를 중앙 가이드에 0.5초 이상 고정해 주세요.');
         } catch (err) {
-            alert("카메라 권한이 필요합니다: " + err);
+            stopScanning();
+            setStatus(`카메라 시작 실패: ${err.message || err}`, 'error');
         }
     };
 
-    captureBtn.onclick = () => {
-        const context = canvas.getContext('2d');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const imageData = canvas.toDataURL('image/jpeg');
-        loading.style.display = 'block';
-        captureBtn.disabled = true;
-
-        fetch('/analyze-cover', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: imageData })
-        })
-            .then(res => res.json())
-            .then(data => {
-                loading.style.display = 'none';
-                captureBtn.disabled = false;
-                if (data.status === 'success') {
-                    // 인식 성공 시 검색 페이지로 이동하여 검색 수행
-                    const title = data.data.title;
-                    alert("📖 책을 찾았습니다: " + title);
-                    window.location.href = `/search?q=${encodeURIComponent(title)}`;
-                } else {
-                    alert("분석 실패: " + (data.message || "책을 인식하지 못했습니다."));
-                }
-            })
-            .catch(err => {
-                loading.style.display = 'none';
-                captureBtn.disabled = false;
-                alert("서버 통신 오류: " + err);
-            });
+    stopBtn.onclick = () => {
+        stopScanning();
+        setStatus('스캔이 중지되었습니다.');
     };
+
+    window.addEventListener('beforeunload', stopScanning);
 </script>
 {% endblock %}

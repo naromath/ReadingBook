@@ -2,34 +2,97 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}독서 비서{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#d8d3c3">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="독서비서">
+    <meta name="format-detection" content="telephone=no">
+    <title>{% block title %}AI 독서 비서{% endblock %}</title>
+    <link rel="manifest" href="{{ url_for('manifest') }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/icon-book.svg') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/icon-180.png') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h1 style="margin: 0;"><a href="/" style="text-decoration: none; color: inherit;">📚 AI 독서 비서</a></h1>
-            {% if request.endpoint != 'index' %}
-                <a href="/" class="btn btn-outline" style="width: auto; padding: 6px 16px;">🏠 홈</a>
-            {% endif %}
-        </header>
-        
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="info-box" style="border-left-color: {% if category == 'error' %}#ef4444{% else %}#7c4dff{% endif %}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">THE BOOKS</div>
 
-        {% block content %}{% endblock %}
-        
-        <footer style="text-align: center; margin-top: 60px; color: var(--text-muted); font-size: 0.9rem;">
-            © 2026 나만의 AI 독서 비서
-        </footer>
+            <div class="nav-section-title">MENU</div>
+            <nav class="nav-group">
+                <a href="{{ url_for('index') }}" class="nav-item {% if request.endpoint == 'index' %}active{% endif %}">
+                    <span class="nav-icon">⌂</span><span>Discover</span>
+                </a>
+                <a href="{{ url_for('search') }}" class="nav-item {% if request.endpoint == 'search' %}active{% endif %}">
+                    <span class="nav-icon">⌕</span><span>책 등록</span>
+                </a>
+                <a href="{{ url_for('log') }}" class="nav-item {% if request.endpoint == 'log' %}active{% endif %}">
+                    <span class="nav-icon">✎</span><span>내 서재</span>
+                </a>
+                <a href="{{ url_for('bookshelf') }}" class="nav-item {% if request.endpoint == 'bookshelf' %}active{% endif %}">
+                    <span class="nav-icon">⬇</span><span>Download</span>
+                </a>
+                <a href="{{ url_for('scan') }}" class="nav-item {% if request.endpoint == 'scan' %}active{% endif %}">
+                    <span class="nav-icon">⌁</span><span>Favorite</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-divider"></div>
+
+            <nav class="nav-group muted-group">
+                <a href="{{ url_for('index') }}" class="nav-item">
+                    <span class="nav-icon">⚙</span><span>Setting</span>
+                </a>
+                <a href="{{ url_for('index') }}" class="nav-item">
+                    <span class="nav-icon">i</span><span>Help</span>
+                </a>
+                <a href="{{ url_for('index') }}" class="nav-item">
+                    <span class="nav-icon">↩</span><span>Log out</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-badge">
+                <div class="badge-art"></div>
+                <div class="badge-title">BOOK LIBRARY</div>
+            </div>
+        </aside>
+
+        <div class="main-column">
+            <header class="topbar">
+                <div class="profile-chip">
+                    <div class="avatar-dot"></div>
+                    <span>Davis Workman</span>
+                </div>
+                <button class="bell-btn" type="button" aria-label="notification">●</button>
+            </header>
+
+            <div class="flash-stack">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="flash-box {% if category == 'error' %}error{% else %}success{% endif %}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </div>
+
+            <main class="page-wrap">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
     </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(() => {});
+            });
+        }
+    </script>
 </body>
 </html>

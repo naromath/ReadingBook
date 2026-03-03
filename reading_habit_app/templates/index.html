@@ -1,36 +1,95 @@
 {% extends "base.html" %}
 
+{% block title %}Discover - AI 독서 비서{% endblock %}
+
 {% block content %}
-<div class="card" style="text-align: center;">
-    <h2>안녕하세요! 오늘은 어떤 독서 여정을 시작할까요?</h2>
-</div>
+<section class="hero-panel">
+    <h1 class="hero-title">Discover</h1>
 
-<div class="menu-grid">
-    <a href="{{ url_for('scan') }}" class="menu-item standout">
-        <span class="icon">📸</span>
-        <span>표지로 등록</span>
-        <small>AI가 제목을 읽어요</small>
-    </a>
-    <a href="{{ url_for('search') }}" class="menu-item">
-        <span class="icon">🔍</span>
-        <span>수동으로 검색</span>
-        <small>ISBN/제목 입력</small>
-    </a>
-    <a href="{{ url_for('log') }}" class="menu-item">
-        <span class="icon">✍️</span>
-        <span>독서 기록 작성</span>
-        <small>오늘의 한 문장</small>
-    </a>
-    <a href="{{ url_for('bookshelf') }}" class="menu-item">
-        <span class="icon">📚</span>
-        <span>내 책장 보기</span>
-        <small>기록 보관함</small>
-    </a>
-</div>
+    <form action="{{ url_for('search') }}" method="GET" class="discover-search">
+        <select name="query_type" class="search-select" aria-label="search type">
+            <option value="Title">All Categories</option>
+            <option value="Author">Author</option>
+            <option value="ISBN13">ISBN</option>
+        </select>
+        <input type="text" name="q" class="search-input" placeholder="find the book you like....">
+        <button type="submit" class="search-btn">Search</button>
+    </form>
 
-{% if current_book %}
-<div class="info-box">
-    📍 현재 읽고 있는 책: <strong>{{ current_book.title }}</strong>
-</div>
-{% endif %}
+    <div class="section-row">
+        <h2>Book Recommendation</h2>
+        <a href="{{ url_for('bookshelf') }}" class="ghost-btn">View all</a>
+    </div>
+
+    <div class="book-row">
+        {% if all_books %}
+            {% for book in all_books[:6] %}
+            <article class="book-tile">
+                <div class="cover-slot">
+                    {% if book.book_image %}
+                    <img class="cover-img" src="{{ book.book_image }}" alt="{{ book.book_title }}">
+                    {% else %}
+                    <div class="no-cover">NO COVER</div>
+                    {% endif %}
+                </div>
+                <h3>{{ book.book_title }}</h3>
+            </article>
+            {% endfor %}
+        {% else %}
+            <article class="book-tile placeholder"><div class="cover-slot"></div><h3>The Psychology of Money</h3></article>
+            <article class="book-tile placeholder"><div class="cover-slot"></div><h3>Company of One</h3></article>
+            <article class="book-tile placeholder"><div class="cover-slot"></div><h3>How Innovation Works</h3></article>
+            <article class="book-tile placeholder"><div class="cover-slot"></div><h3>The Picture of Dorian Gray</h3></article>
+        {% endif %}
+    </div>
+</section>
+
+<section class="content-card">
+    <div class="section-row">
+        <h2>Book Category</h2>
+        <a href="{{ url_for('search') }}" class="ghost-icon" aria-label="more categories">◫</a>
+    </div>
+
+    <div class="category-grid">
+        <article class="category-card mint">
+            <div class="category-cover"></div>
+            <h3>Money/Investing</h3>
+        </article>
+        <article class="category-card sand">
+            <div class="category-cover"></div>
+            <h3>Design</h3>
+        </article>
+        <article class="category-card blue">
+            <div class="category-cover"></div>
+            <h3>Business</h3>
+        </article>
+        <article class="category-card coral">
+            <div class="category-cover"></div>
+            <h3>Self Improvement</h3>
+        </article>
+    </div>
+
+    {% if current_book %}
+    <div class="focus-book">
+        <span>Now reading</span>
+        <strong>{{ current_book.title }}</strong>
+    </div>
+    {% endif %}
+</section>
+
+<script>
+    let deferredPrompt = null;
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        deferredPrompt = event;
+    });
+
+    window.triggerInstall = async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+    };
+</script>
 {% endblock %}

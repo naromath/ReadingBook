@@ -1,43 +1,48 @@
 {% extends "base.html" %}
 
+{% block title %}Reading Log - AI 독서 비서{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h3>📝 오늘 읽은 감상 남기기</h3>
+<section class="content-card">
+    <div class="section-row">
+        <h1 class="hero-title small">Reading Log</h1>
+        <a href="{{ url_for('bookshelf') }}" class="ghost-btn">My Shelf</a>
+    </div>
 
     {% if not book_data %}
-    <div class="info-box" style="border-left-color: #f59e0b;">
-        먼저 <a href="/search">새로운 책 저장</a> 메뉴에서 읽을 책을 등록해 주세요.
+    <div class="status-panel warning">
+        먼저 <a href="{{ url_for('search') }}">새로운 책 저장</a>에서 읽을 책을 등록해 주세요.
     </div>
     {% else %}
-    <div style="display: flex; gap: 20px; align-items: start; margin-bottom: 24px;">
+    <article class="result-card">
         {% if book_data.thumbnail %}
-        <img src="{{ book_data.thumbnail }}" width="100" class="thumbnail">
+        <img src="{{ book_data.thumbnail }}" class="result-cover" alt="{{ book_data.title }}">
         {% endif %}
         <div>
-            <h4 style="margin: 0;">📖 {{ book_data.title }}</h4>
-            <p class="text-muted" style="margin: 5px 0;">{{ book_data.authors[0] }}</p>
-            <div class="info-box" style="font-size: 0.9rem; padding: 10px;">
-                💡 <strong>AI 큐레이터:</strong> {{ curation_data.curation_message }}
-            </div>
+            <h3>{{ book_data.title }}</h3>
+            <p>{{ book_data.authors[0] }}</p>
+            <p class="muted-copy">총 {{ book_data.page_count }}쪽</p>
+            {% if curation_data %}
+            <p class="muted-copy"><strong>AI 큐레이터:</strong> {{ curation_data.curation_message }}</p>
+            {% endif %}
         </div>
-    </div>
+    </article>
 
-    <form action="/log" method="POST">
-        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 16px;">
+    <form action="{{ url_for('log') }}" method="POST" class="stack-form">
+        <div class="form-grid two">
             <div>
-                <label>오늘 누적 읽은 쪽수</label>
-                <input type="number" name="read_pages" class="input-field" min="1" max="{{ book_data.page_count }}"
-                    value="{{ curation_data.daily_pages }}" required>
-                <small class="text-muted">전체 {{ book_data.page_count }}쪽</small>
+                <label for="read_pages" class="label">오늘 누적 읽은 쪽수</label>
+                <input id="read_pages" type="number" name="read_pages" min="1" max="{{ book_data.page_count }}"
+                    value="{{ curation_data.daily_pages if curation_data else 1 }}" required>
+                <p class="muted-copy">전체 {{ book_data.page_count }}쪽</p>
             </div>
             <div>
-                <label>인상 깊었던 점</label>
-                <textarea name="user_thought" class="input-field" style="height: 100px;"
-                    placeholder="오늘 읽은 부분에서 무엇을 느꼈나요?" required></textarea>
+                <label for="user_thought" class="label">인상 깊었던 점</label>
+                <textarea id="user_thought" name="user_thought" rows="5" placeholder="오늘 읽은 부분에서 무엇을 느꼈나요?" required></textarea>
             </div>
         </div>
-        <button type="submit" class="btn btn-primary" style="margin-top: 10px;">기록 저장 및 AI 피드백 받기 💌</button>
+        <button type="submit" class="btn-primary-solid">기록 저장 및 AI 피드백 받기</button>
     </form>
     {% endif %}
-</div>
+</section>
 {% endblock %}

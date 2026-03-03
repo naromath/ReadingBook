@@ -1,43 +1,85 @@
 {% extends "base.html" %}
 
+{% block title %}Search - AI 독서 비서{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>🔍 책 검색 및 등록</h2>
-    <p>등록하고 싶은 책의 제목이나 ISBN을 입력해 주세요.</p>
+<section class="hero-panel compact">
+    <div class="section-row">
+        <h1 class="hero-title">Search & Register</h1>
+        <a href="{{ url_for('scan') }}" class="ghost-btn">Scan ISBN</a>
+    </div>
 
-    <form action="{{ url_for('search') }}" method="POST" id="search-form">
-        <div class="form-group">
-            <label>🔍 검색 조건</label>
-            <div style="display: flex; gap: 15px; margin-bottom: 10px;">
-                <label style="font-size: 0.9rem;"><input type="radio" name="query_type" value="Title" checked>
-                    제목</label>
-                <label style="font-size: 0.9rem;"><input type="radio" name="query_type" value="Author"> 저자</label>
-                <label style="font-size: 0.9rem;"><input type="radio" name="query_type" value="ISBN13"> ISBN</label>
+    <p class="muted-copy">제목, 저자, ISBN으로 검색하고 독서 목표를 설정하면 바로 큐레이션이 생성됩니다.</p>
+
+    {% if scanned_book %}
+    <article class="result-card">
+        {% if scanned_book.thumbnail %}
+        <img src="{{ scanned_book.thumbnail }}" class="result-cover" alt="{{ scanned_book.title }}">
+        {% endif %}
+        <div>
+            <span class="pill">Aladin API</span>
+            <h3>{{ scanned_book.title }}</h3>
+            <p>{{ scanned_book.authors[0] }}</p>
+            <p class="muted-copy">총 {{ scanned_book.page_count }}쪽 {% if scanned_book.isbn13 %}· ISBN13 {{ scanned_book.isbn13 }}{% endif %}</p>
+        </div>
+    </article>
+    {% endif %}
+
+    <form action="{{ url_for('search') }}" method="POST" id="search-form" class="stack-form">
+        <div class="form-line radio-group">
+            <label class="radio-option"><input type="radio" name="query_type" value="Title" {% if selected_query_type|default('Title') == 'Title' %}checked{% endif %}> 제목</label>
+            <label class="radio-option"><input type="radio" name="query_type" value="Author" {% if selected_query_type == 'Author' %}checked{% endif %}> 저자</label>
+            <label class="radio-option"><input type="radio" name="query_type" value="ISBN13" {% if selected_query_type == 'ISBN13' %}checked{% endif %}> ISBN</label>
+        </div>
+
+        <div class="form-grid two">
+            <div>
+                <label for="isbn" class="label">검색어</label>
+                <input type="text" id="isbn" name="isbn" value="{{ query_value|default(request.args.get('q', '')) }}" placeholder="검색어를 입력해 주세요" required>
             </div>
-            <input type="text" id="isbn" name="isbn" value="{{ request.args.get('q', '') }}" placeholder="검색어를 입력해 주세요"
-                required>
+            <div>
+                <label for="user_goal" class="label">독서 목적</label>
+                <select id="user_goal" name="user_goal" required>
+                    <option value="" disabled selected>목적을 선택해 주세요</option>
+                    <option value="투자">투자</option>
+                    <option value="자기개발">자기개발</option>
+                    <option value="경영">경영</option>
+                    <option value="건강">건강</option>
+                    <option value="기타">기타</option>
+                </select>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="user_goal">🎯 독서 목적</label>
-            <select id="user_goal" name="user_goal" class="input-field" required>
-                <option value="" disabled selected>목적을 선택해 주세요</option>
-                <option value="투자">투자</option>
-                <option value="자기개발">자기개발</option>
-                <option value="경영">경영</option>
-                <option value="건강">건강</option>
-                <option value="기타">기타</option>
-            </select>
-        </div>
-
-        <button type="submit" class="btn btn-full">책 정보 불러오기</button>
+        <button type="submit" class="btn-primary-solid">책 정보 불러오기</button>
     </form>
-</div>
+</section>
 
-{% if auto_submit %}
 <script>
-    // 스캔 후 넘어온 경우 바로 정보 조회를 위해 폼 전송은 하지 않고 안내만 (목표 입력 유도)
-    document.getElementById('user_goal').focus();
+    const queryRadios = document.querySelectorAll('input[name="query_type"]');
+    const isbnInput = document.getElementById('isbn');
+    const isAutoSubmit = {{ 'true' if auto_submit else 'false' }};
+
+    const applyInputMode = () => {
+        const selected = document.querySelector('input[name="query_type"]:checked');
+        const isIsbnMode = selected && selected.value === 'ISBN13';
+        if (isIsbnMode) {
+            isbnInput.setAttribute('inputmode', 'numeric');
+            isbnInput.setAttribute('autocomplete', 'off');
+            isbnInput.setAttribute('placeholder', 'ISBN 숫자를 입력해 주세요');
+        } else {
+            isbnInput.removeAttribute('inputmode');
+            isbnInput.setAttribute('placeholder', '검색어를 입력해 주세요');
+        }
+    };
+
+    queryRadios.forEach((radio) => radio.addEventListener('change', applyInputMode));
+
+    if (isAutoSubmit) {
+        const isbnRadio = document.querySelector('input[name="query_type"][value="ISBN13"]');
+        if (isbnRadio) isbnRadio.checked = true;
+        document.getElementById('user_goal').focus();
+    }
+
+    applyInputMode();
 </script>
-{% endif %}
 {% endblock %}
